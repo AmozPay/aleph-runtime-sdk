@@ -1,0 +1,36 @@
+FROM debian:bullseye-slim
+
+RUN apt-get update -y
+RUN apt-get install -y --no-install-recommends --no-install-suggests \
+    python3-minimal \
+    openssh-server \
+    socat libsecp256k1-0 \
+    python3-aiohttp python3-msgpack \
+    python3-setuptools \
+    python3-pip python3-cytoolz python3-pydantic \
+    iproute2 unzip \
+    nodejs npm \
+    build-essential python3-dev
+
+RUN pip3 install 'fastapi~=0.71.0'
+
+RUN echo "Pip installing aleph-client" && pip3 install 'aleph-client>=0.4.6' 'coincurve==15.0.0'
+
+# Compile all Python bytecode
+RUN python3 -m compileall -f /usr/local/lib/python3.9
+RUN echo "root:toor" | /usr/sbin/chpasswd
+RUN mkdir -p /overlay
+RUN ln -s agetty /etc/init.d/agetty.ttyS0 && echo ttyS0 > /etc/securetty
+RUN echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
+
+COPY inittab /etc/inittab
+
+COPY ./init0.sh /sbin/init
+COPY ./init1.py /root/init1.py
+COPY ./runtime_types.py /root/runtime_types.py
+COPY ./custom_plugins.py /root/custom_plugins.py
+RUN chmod +x \
+    /sbin/init \
+    /root/init1.py \
+    /root/custom_plugins.py \
+    /root/runtime_types.py
