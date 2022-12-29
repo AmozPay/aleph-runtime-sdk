@@ -44,9 +44,21 @@ socat UNIX-LISTEN:/tmp/socat-socket,fork,reuseaddr VSOCK-CONNECT:2:53 &
 log "Socat ready"
 
 # executing user custom init sequence, if any
-exec /root/init0_plugin.sh || log "No user defined init0_plugin.sh sequence, skipping"
+if [ -e /root/init0_plugin.sh ]
+then
+    log "Found init0_plugin.sh sequence, exectuting"
+    /root/init0_plugin.sh
+else
+    log "No user defined init0_plugin.sh sequence, skipping"
+fi
 
-# pip show aiohttp
+
+# this section is for testing plugins with 'aleph runtime test'
+if [ -e /root/sdk_test ]
+then
+    log "Running runtime plugin testing init sequence instead of /root/init1.py"
+    exec /root/init_test.py
+fi
 
 # Replace this script with the manager
 exec /root/init1.py

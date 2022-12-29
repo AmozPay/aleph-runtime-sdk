@@ -1,4 +1,4 @@
-FROM amozpay/aleph-runtime-base:debian-11
+FROM ghcr.io/amozpay/aleph-debian-11-python-base:latest
 
 # Install some additionnal packages as an example
 RUN apt-get install curl -y
@@ -10,7 +10,7 @@ RUN apt-get autoremove nodejs npm -y
 COPY ./init0_plugin.sh /root/init0_plugin.sh
 COPY ./custom_plugins.py /root/custom_plugins.py
 
-# make them executable 
-RUN chmod +x /root/custom_plugins.py /root/init0_plugin.sh.py
+# make them executable
+RUN chmod +x /root/custom_plugins.py /root/init0_plugin.sh
 
 RUN echo "done!"
