@@ -1,0 +1,94 @@
+name: release
+
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  create_release:
+    name: Build and release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Create archive
+        run: |
+          cd $GITHUB_WORKSPACE
+          tar -czf plugins.tar.gz --directory=plugins .
+          tar -czf aleph-debian-11-python-base.tar.gz --directory=runtimes/aleph-debian-11-python-base .
+      - name: Get version from tag
+        id: lasttag
+        run: |
+          echo TAG=${GITHUB_REF#refs/tags/v}
+          echo ::set-output name=version::${GITHUB_REF#refs/tags/v}
+        shell: bash
+      - name: Parse Changelog Entry
+        id: changelog
+        uses: coditory/changelog-parser@v1
+        with:
+          version: ${{ steps.lasttag.outputs.version }}
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.changelog.outputs.version }}
+          release_name: v${{ steps.changelog.outputs.version }}
+          body: ${{ steps.changelog.outputs.description }}
+      - name: upload artifact 1
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: aleph-debian-11-python-base.tar.gz
+          asset_name: aleph-debian-11-python-base.tar.gz
+          asset_content_type: application/gzip
+      - name: upload artifact 2
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: plugins.tar.gz
+          asset_name: plugins_template.tar.gz
+          asset_content_type: application/gzip
+
+  docker_publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Get tag
+        id: tag
+        run: |
+          echo ${GITHUB_REF}
+          echo TAG=${GITHUB_REF#refs/tags/v}
+          echo ::set-output name=version::${GITHUB_REF#refs/tags/v}
+
+      - name: build image
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          cd $GITHUB_WORKSPACE/runtimes/aleph-debian-11-python-base/
+          docker build \
+            -t build_image \
+            -f Containerfile \
+            --label "org.opencontainers.image.source=${{ env.REPO_NAME }}" \
+            --label "org.opencontainers.image.description=Base aleph.im lambda runtime with plugin compatibility" \
+            --label "org.opencontainers.image.licenses=MIT"\
+            .
+      - name: tag image to latest
+        run: |
+          docker image tag build_image ghcr.io/amozpay/aleph-debian-11-python-base:latest
+          docker image tag build_image ghcr.io/amozpay/aleph-debian-11-python-base:${{ steps.tag.outputs.version }}
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: push images
+        run: docker image push --all-tags ghcr.io/amozpay/aleph-debian-11-python-base
